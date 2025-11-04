@@ -54,7 +54,7 @@ target = client.targets.set(
             }
         ],
         "model_name": "Qwen/Qwen3-32B",
-        "u": "gavin_belon_prompt",
+        "u": "gavin_belson_prompt",
         "v": "baseline_prompt"
     }
 )
@@ -69,7 +69,7 @@ client.targets.stim.run(
 while True:
     status = client.targets.stim.get(
         target_name="gavin_target",
-        repo_nane="my_first_repo"
+        repo_name="my_first_repo"
     )
     if status.status == "complete":
         print(f"Stim complete! Generated {status.lines} stimuli")

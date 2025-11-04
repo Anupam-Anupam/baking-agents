@@ -54,7 +54,7 @@ client.prompts.set(
 )
 
 # Create a baseline prompt that gets baked into
-client.prompt.set(
+client.prompts.set(
     prompt_name="baseline_prompt",
     repo_name="my_first_repo",
     # Often times, we set our baseline prompt as a null prompt. This means that any prompt that gets baked in, gets baked into a model with no initial state
@@ -86,7 +86,7 @@ target = client.targets.set(
             }
         ],
         "model_name": "Qwen/Qwen3-32B",
-        "u": "gavin_belon_prompt",
+        "u": "gavin_belson_prompt",
         "v": "baseline_prompt"
     }
 )
