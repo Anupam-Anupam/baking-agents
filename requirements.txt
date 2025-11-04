@@ -1,6 +1,5 @@
-# Bread SDK - Install from GitHub repository
-# Once pip package is available, this will be simplified to: aibread>=1.0.0
-git+ssh://git@github.com/stainless-sdks/bread-sdk-v1-python.git
+# Bread SDK
+aibread>=1.0.0
 
 # Dependencies
 python-dotenv>=1.0.0

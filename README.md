@@ -5,7 +5,7 @@ Learn more from our official [documentation](https://breadtechnologiesinc.mintli
 
 # Get Started
 1. Install the Bread Python SDK:
-`pip install git+ssh://git@github.com/stainless-sdks/bread-sdk-v1-python.git`
+`pip install aibread`
 
 2. Get your Bread API key (via aibread.com) and set it in the `.env`:
 `cp .env.example .env`
@@ -39,7 +39,7 @@ Read more about what each stage of the bake process does on our docs: [What is B
 
 1. Create a repo & add a prompt to bake in
 ```python
-from bread import Bread
+from aibread import Bread
 
 client = Bread()
 
