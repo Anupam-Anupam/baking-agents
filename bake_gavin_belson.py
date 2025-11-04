@@ -1,19 +1,9 @@
-# Git for Weight Space
-Git for Weight Space is a developer platform that lets you ship custom AI models as easily as commiting code. A version control system (like Git!) that lets you form your own branching tree of AI models. Fork, create, and combine prompts to make AI models.
-
-Learn more from our official documentation.
-
-# Get Started
-1. Install the Bread Python SDK:
-`pip install git+ssh://git@github.com/stainless-sdks/bread-sdk-v1-python.git`
-
-2. Get your Bread API key (via aibread.com) and set it:
-`export BREAD_API_KEY="sk-your-api-key"`
-
-3. Initialize the Client:
-```python
 import os
+import dotenv
+import time
 from aibread import Bread
+
+dotenv.load_dotenv()
 
 client = Bread(
     api_key=os.environ.get("BREAD_API_KEY")
@@ -22,24 +12,6 @@ client = Bread(
 # List all the repos you've made
 repos = client.repo.list()
 print(repos.items)
-```
-
-# Creating a Bake
-Prompt baking requires four steps:
-1. Stim (Stimulus Generation)
-2. Rollout
-3. Collation
-4. Bake
-
-Read more about what each stage of the bake process does on our docs: (doc link here for what is baking)
-
-# Example Code of Running a Bake
-
-1. Create a repo & add a prompt to bake in
-```python
-from bread import Bread
-
-client = Bread()
 
 # Create Repo
 repo = client.repo.set(repo_name="my_first_repo")
@@ -57,14 +29,12 @@ client.prompt.set(
     repo_name="my_first_repo",
     # Often times, we set our baseline prompt as a null prompt. This means that any prompt that gets baked in, gets baked into a model with no initial state
     messages=[{"role": "user", "content": ""}]
-)
-```
-2. Configure a Target
-```python
+    )
+
+# Configure a Target
 target = client.targets.set(
     target_name="gavin_target",
     repo_name="my_first_repo",
-    # Specify template to 'default' for a new target
     template="default",
     overrides={
         "generators": [
@@ -88,21 +58,26 @@ target = client.targets.set(
         "v": "baseline_prompt"
     }
 )
-```
-
-3. Run Stim Job
-```python
-import time
 
 # Start Stim Job
 client.targets.stim.run(
     target_name="gavin_target",
     repo_name="my_first_repo"
 )
-```
 
-4. Check your Stim Output
-```python
+# Check Status for Completion of Stim
+while True:
+    status = client.targets.stim.get(
+        target_name="gavin_target",
+        repo_nane="my_first_repo"
+    )
+    if status.status == "complete":
+        print(f"Stim complete! Generated {status.lines} stimuli")
+        break
+    print(f"Status: {status.status}")
+    time.sleep(5)
+
+# Check your Stim Output
 output = client.targets.stim.get_output(
     target_name="gavin_target",
     repo_name="my_first_repo",
@@ -111,19 +86,26 @@ output = client.targets.stim.get_output(
 
 for stimulus in output.output:
     print(stimulus)
-```
 
-5. Once you are happy with your stim output, run rollout:
-```python
-# Start rollout job
+# Once you are happy with your stim output, run rollout:
 client.targets.rollout.run(
     target_name="gavin_target",
     repo_name="my_first_repo"
 )
-```
 
-6. Get Rollout Output:
-```python
+# Check status for completion of rollout
+while True:
+    status = client.targets.rollout.get(
+        target_name="gavin_target",
+        repo_name="my_first_repo"
+    )
+    if status.status == "complete":
+        print(f"Rollout complete! Generated {status.lines} trajectories")
+        break
+    print(f"Status: {status.status}")
+    time.sleep(5)
+
+# Get Rollout Output
 rollout_output = client.targets.rollout.get_output(
     target_name="gavin_target",
     repo_name="my_first_repo",
@@ -132,10 +114,8 @@ rollout_output = client.targets.rollout.get_output(
 
 for trajectory in rollout_output.output:
     print(trajectory)
-```
 
-7. Configure your bake:
-```python
+# Configure your bake:
 bake = client.bakes.set(
     bake_name="gavin_bake",
     repo_name="my_first_repo",
@@ -146,16 +126,11 @@ bake = client.bakes.set(
         ]
     }
 )
-```
 
-8. Run your bake!
-```python
+# Run your bake!
 result = client.bakes.run(
     bake_name="gavin_bake",
     repo_name="my_first_repo"
 )
 
 print("Baking started!")
-```
-
-Run the `bake_gavin_belson.py` script to run the bake on your own!
