@@ -128,6 +128,7 @@ try:
             "generators": [
                 {
                     "type": "hardcoded",
+                    "numq": 3,
                     "questions": [
                         "Hey Gavin, your Signature Box is a terrible product",
                         "Pied Piper 4 Life!",
