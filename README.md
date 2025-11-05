@@ -17,10 +17,16 @@ Learn more in our [official documentation](https://breadtechnologiesinc.mintlify
 
 ## Quick Start
 
-### 1. Install the SDK
+### 1. Install the SDK and requirements
 
 ```bash
 pip install aibread
+```
+
+or
+
+```bash
+pip install -r requirements.txt
 ```
 
 ### 2. Set Your API Key
