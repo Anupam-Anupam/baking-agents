@@ -10,7 +10,7 @@ dotenv.load_dotenv()
 REPO_NAME = "my_first_repo"
 TARGET_NAME = "gavin_target"
 BAKE_NAME = "gavin_bake"
-MODEL_NAME = "Qwen/Qwen3-32B"  # Base model to train
+# MODEL_NAME = "Qwen/Qwen3-32B"  # Base model to train
 MAX_POLL_ATTEMPTS = 120  # 10 minutes at 5s intervals
 POLL_INTERVAL = 5  # seconds between status checks
 # ========================================
@@ -143,7 +143,7 @@ try:
                 "temperature": 1.0
             }
         ],
-        "model_name": MODEL_NAME,
+        "model_name": "Qwen/Qwen3-32B",
         "u": "gavin_belson_prompt",
         "v": "baseline_prompt"
         }
@@ -235,7 +235,7 @@ except Exception as e:
 log("Configuring bake...")
 try:
     bake = client.bakes.set(
-        model_name=MODEL_NAME,
+        model_name="Qwen/Qwen3-32B",
         bake_name=BAKE_NAME,
         repo_name=REPO_NAME,
         template="default",
