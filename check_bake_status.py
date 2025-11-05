@@ -5,7 +5,7 @@ from aibread import Bread
 dotenv.load_dotenv()
 
 # ============ CONFIGURATION ============
-BREAD_API_KEY = "sk-SYfaJrOg0UEviJih2QtMWQ"
+BREAD_API_KEY = "sk-your-api-key"
 REPO_NAME = "my_third_repo"
 BAKE_NAME = "gavin_bake"
 # =======================================
