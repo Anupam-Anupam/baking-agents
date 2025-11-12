@@ -1,4 +1,5 @@
 import os
+import json
 import requests
 import dotenv
 
@@ -60,26 +61,51 @@ def chat_with_model():
         payload = {
             "model": MODEL_NAME,
             "messages": conversation_history,
-            "temperature": 0.7
+            "temperature": 0.7,
+            "stream": True
         }
         
         try:
-            # Make API request
-            response = requests.post(BASE_URL, headers=headers, json=payload)
+            # Make streaming API request
+            response = requests.post(BASE_URL, headers=headers, json=payload, stream=True)
             response.raise_for_status()
             
-            # Parse response
-            response_data = response.json()
-            assistant_message = response_data["choices"][0]["message"]["content"]
+            # Display streaming response
+            print(f"\n{MODEL_NAME.split('/')[-1].upper()}: ", end="", flush=True)
+            
+            assistant_message = ""
+            
+            # Process streaming chunks
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                    
+                line = line.decode('utf-8')
+                
+                # Skip empty lines and check for stream end
+                if line.strip() == "data: [DONE]":
+                    break
+                
+                # Parse SSE format (lines start with "data: ")
+                if line.startswith("data: "):
+                    try:
+                        chunk_data = json.loads(line[6:])  # Remove "data: " prefix
+                        delta = chunk_data.get("choices", [{}])[0].get("delta", {})
+                        content = delta.get("content", "")
+                        
+                        if content:
+                            print(content, end="", flush=True)
+                            assistant_message += content
+                    except json.JSONDecodeError:
+                        continue
+            
+            print("\n")  # New line after streaming completes
             
             # Add assistant response to history
             conversation_history.append({
                 "role": "assistant",
                 "content": assistant_message
             })
-            
-            # Display response
-            print(f"\n{MODEL_NAME.split('/')[-1].upper()}: {assistant_message}\n")
             
         except requests.exceptions.HTTPError as e:
             print(f"\n❌ API Error: {e}")
