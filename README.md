@@ -286,6 +286,25 @@ Once your bake completes:
 
 ---
 
+## Chat with Your Baked Model
+
+We've included a helper script to easily chat with your baked model via the command line.
+
+**Configure and run:**
+```bash
+python chat_with_model.py
+```
+
+Edit the configuration at the top of `chat_with_model.py`:
+```python
+BREAD_API_KEY = os.environ.get("BREAD_API_KEY", "sk-your-api-key")
+MODEL_NAME = "my_first_repo/gavin_bake"  # Format: repo_name/bake_name
+```
+
+The script maintains conversation history, so you can have multi-turn dialogues with your model. Type `exit`, `quit`, or `q` to end the conversation.
+
+---
+
 ## Common Issues
 
 **"API key not found"**  
