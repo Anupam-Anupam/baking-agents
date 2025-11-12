@@ -1,26 +1,34 @@
+"""
+Bread SDK - Chat with Your Baked Model
+
+Before running this script:
+1. Install dependencies: pip install -r requirements.txt
+2. Set your API key: export BREAD_API_KEY='your_api_key_here'
+   - Windows CMD: setx BREAD_API_KEY "your_api_key_here"
+   - Windows PowerShell: $env:BREAD_API_KEY='your_api_key_here'
+3. Configure MODEL_NAME below to your baked model path
+"""
+
 import os
 import json
 import requests
-import dotenv
-
-dotenv.load_dotenv()
 
 # ============ CONFIGURATION ============
-BREAD_API_KEY = os.environ.get("BREAD_API_KEY", "sk-your-api-key")
-MODEL_NAME = "Qwen/Qwen3-32B"  # Format: repo_name/bake_name
-ENABLE_THINKING = False  # Set to True to enable Qwen's thinking mode
-# =======================================
-
-# API endpoint
+BREAD_API_KEY = os.environ.get("BREAD_API_KEY")
+# Format: username/repo_name/bake_name/checkpoint or base_model_name
+MODEL_NAME = "johndoe/yoda_repo/yoda_bake/21"
 BASE_URL = "http://bapi.bread.com.ai/v1/chat/completions"
-
+# Set to True to enable Qwen's thinking mode
+ENABLE_THINKING = False
+# =======================================
 
 def chat_with_model():
     """Start an interactive chat session with your baked model."""
     
     # Validate configuration
-    if BREAD_API_KEY == "sk-your-api-key":
-        print("⚠️  Please set your BREAD_API_KEY in the configuration section or .env file")
+    if not BREAD_API_KEY:
+        print("Please set your BREAD_API_KEY environment variable")
+        print("export BREAD_API_KEY='your_api_key_here'")
         return
     
     # Initialize conversation history
@@ -117,13 +125,13 @@ def chat_with_model():
             })
             
         except requests.exceptions.HTTPError as e:
-            print(f"\n❌ API Error: {e}")
+            print(f"\nAPI Error: {e}")
             print(f"Response: {response.text}\n")
             # Remove the last user message since we got an error
             conversation_history.pop()
             
         except Exception as e:
-            print(f"\n❌ Error: {e}\n")
+            print(f"\nError: {e}\n")
             # Remove the last user message since we got an error
             conversation_history.pop()
 
