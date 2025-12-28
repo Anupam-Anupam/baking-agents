@@ -20,7 +20,7 @@ dotenv.load_dotenv()
 BREAD_API_KEY = os.environ.get("BREAD_API_KEY")
 # Format: username/repo_name/bake_name/checkpoint or base_model_name
 MODEL_NAME = "johndoe/yoda_repo/yoda_bake/21"
-BASE_URL = "http://bapi.bread.com.ai/v1/chat/completions"
+BASE_URL = "https://bapi.bread.com.ai/v1/chat/completions"
 # Set to True to enable Qwen's thinking mode
 ENABLE_THINKING = False
 # =======================================
