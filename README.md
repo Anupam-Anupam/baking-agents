@@ -1,5 +1,7 @@
 # Bread SDK - Bake Your First AI Model
 
+**Repository:** [baking-agents](https://github.com/Anupam-Anupam/baking-agents) on GitHub.
+
 Baking encodes prompt behavior directly into model weights. Create a Yoda personality model that speaks like Yoda with **zero system prompt tokens** at inference.
 
 **What you'll build in this guide:** A custom AI model that acts like Yoda.
@@ -589,6 +591,22 @@ This repository includes complete examples and helpful utilities:
 
 These scripts demonstrate end-to-end workflows you can adapt for your own use cases.
 
+### Qubit Game Environment
+- **`qubit_game_env.py`** - Single-qubit RL environment for AI agents. Each episode starts from a **random initial state**; the agent applies gates (I, X, Y, Z, H) to maximize fidelity to a target state. Gym-style API: `reset(seed?)` → `(obs, info)`, `step(action)` → `(obs, reward, terminated, truncated, info)`. Use it to train or evaluate agents that play the qubit game.
+
+  **Run a random episode:**
+  ```bash
+  python qubit_game_env.py
+  ```
+
+  **Use in code:**
+  ```python
+  from qubit_game_env import QubitGameEnv, QubitGameConfig
+  env = QubitGameEnv()
+  obs, info = env.reset(seed=42)
+  obs, reward, terminated, truncated, info = env.step(action=1)  # e.g. Pauli-X
+  ```
+
 ### Helper Scripts
 - **`helper_scripts/chat_with_model.py`** - Interactive chat interface for testing baked models
 - **`helper_scripts/check_bake_status.py`** - Quick status checker for monitoring bake progress
@@ -625,7 +643,8 @@ Configure these scripts with your repo/bake names and run them directly.
 
 ## Need Help?
 
-- **GitHub Repository:** [Bread-SDK-Bake-Repo](https://github.com/Bread-Technologies/Bread-SDK-Bake-Repo)
+- **This repository (baking-agents):** [github.com/Anupam-Anupam/baking-agents](https://github.com/Anupam-Anupam/baking-agents)
+- **Bread SDK Bake Repo:** [Bread-SDK-Bake-Repo](https://github.com/Bread-Technologies/Bread-SDK-Bake-Repo)
 - **Documentation:** [docs.bread.com.ai](https://docs.bread.com.ai/)
 - **Issues:** Report bugs on GitHub
 
