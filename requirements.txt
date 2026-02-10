@@ -5,3 +5,18 @@ aibread>=1.0.0
 python-dotenv>=1.0.0
 requests>=2.31.0
 
+# Quantum game environment
+numpy>=1.24.0
+
+# Inspect AI Framework for evaluation
+# https://inspect.aisi.org.uk
+inspect-ai>=0.3.0
+
+# For local teacher model inference (Qwen3 via Ollama)
+# Install Ollama separately: https://ollama.ai
+# Then pull model: ollama pull qwen3:0.6b
+
+# Optional: For alternative model providers
+# openai>=1.0.0          # For OpenAI models
+# anthropic>=0.18.0      # For Claude models
+# google-genai>=0.1.0    # For Gemini models
