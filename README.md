@@ -615,6 +615,58 @@ Configure these scripts with your repo/bake names and run them directly.
 
 ---
 
+## Observer -> Distill -> Bake Pipeline
+
+This repo now includes a modular pipeline that turns trajectory logs into reusable rules, then into a Bread bake recipe.
+
+### What was added
+
+- `src/sales_agent/observer/` - Episode-to-lesson extraction
+- `src/sales_agent/memory/` - Lesson storage and retrieval
+- `src/sales_agent/distillation/` - Rule clustering and prompt recipe generation
+- `src/sales_agent/baking/` - Bread orchestration (`prompts -> target -> stim -> rollout -> bake`)
+- `src/sales_agent/evaluation/` - Ablation matrix definitions
+- `scripts/run_qubit_learning_to_bake.py` - End-to-end runner
+
+### Run it
+
+1. Generate trajectories:
+
+```bash
+python run_evaluation.py --standalone --episodes 10 --output-dir ./logs
+```
+
+2. Run pipeline (dry-run by default):
+
+```bash
+python scripts/run_qubit_learning_to_bake.py \
+  --eval-json ./logs/eval_YYYYMMDD_HHMMSS.json \
+  --run-id batch_001 \
+  --repo-name qubit_repo
+```
+
+3. Launch a real bake:
+
+```bash
+python scripts/run_qubit_learning_to_bake.py \
+  --eval-json ./logs/eval_YYYYMMDD_HHMMSS.json \
+  --run-id batch_001 \
+  --repo-name qubit_repo \
+  --live
+```
+
+### Artifacts produced
+
+- `results/observer/atomic_lessons.jsonl`
+- `results/distill/<recipe_version>/distilled_rules.json`
+- `results/distill/<recipe_version>/teacher_prompt.txt`
+- `results/distill/<recipe_version>/bread_recipe.json`
+- `data/bread/stim/*.jsonl`
+- `data/bread/baked_models/registry.json`
+- `results/bake_eval/<recipe_version>/bake_summary.json`
+
+---
+
 ## Documentation & Resources
 
 ### Getting Started
