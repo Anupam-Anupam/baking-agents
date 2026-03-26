@@ -1,0 +1,15 @@
+{
+  "batch_size": 20,
+  "split_seed": 42,
+  "train_ratio": 0.8,
+  "policy_model_endpoint": "http://localhost:8000/v1",
+  "policy_model_name": "Qwen/Qwen3-8B",
+  "observer_model_endpoint": "http://localhost:8001/v1",
+  "observer_model_name": "Qwen/Qwen3-8B",
+  "webarena_root": "../webarena",
+  "webarena_python_executable": "../webarena/.conda-py310/bin/python",
+  "webarena_instruction_path": "agent/prompts/jsons/p_cot_id_actree_2s.json",
+  "bread_repo_name": "webarena_shopping_repo",
+  "bread_base_model": null,
+  "dry_run_bake": true
+}

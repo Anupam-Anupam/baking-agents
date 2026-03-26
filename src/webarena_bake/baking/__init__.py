@@ -1,0 +1,2 @@
+"""Bread baking adapters."""
+

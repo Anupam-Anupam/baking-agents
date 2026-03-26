@@ -1,61 +1,78 @@
 # Baking Agents: WebArena Observer-Bake
 
-This repository now tracks a focused goal:
+This repo is now focused on one goal: **WebArena shopping-domain learning with Bread prompt baking**.
 
-1. Run an agent on WebArena shopping tasks.
-2. Extract per-run observer feedback.
-3. Distill feedback into stable teacher/student prompt recipes.
-4. Bake those recipes with Bread.
-5. Compare baked vs non-baked baselines on held-out validation tasks.
+Pipeline:
 
-## What this currently accomplishes
+1. Run WebArena shopping tasks with a base model.
+2. Extract observer lessons from run logs.
+3. Distill lessons into a teacher/student prompt recipe.
+4. Run Bread stim -> rollout -> bake.
+5. Evaluate baked vs non-baked baselines on held-out validation tasks.
 
-- Bread SDK bake examples are still available in:
-  - `example_bakes/example_yoda_bake.py`
-  - `example_bakes/example_multi-target_bake.py`
-- Utility scripts are still available in:
-  - `helper_scripts/check_bake_status.py`
-  - `helper_scripts/chat_with_model.py`
-- This repo has been cleaned of older qubit-game evaluation/prototype files that were not aligned with the WebArena objective.
+## What is in the repo now
 
-## How far we have gotten
+- WebArena-focused bake scaffold:
+  - `src/webarena_bake/observer/`
+  - `src/webarena_bake/memory/`
+  - `src/webarena_bake/distillation/`
+  - `src/webarena_bake/baking/`
+  - `src/webarena_bake/runners/`
+  - `src/webarena_bake/evaluation/`
+- CLI entrypoints:
+  - `scripts/build_shopping_split.py`
+  - `scripts/train_loop.py`
+  - `scripts/run_ablation.py`
+- Runtime config:
+  - `configs/default.json`
+- Bread SDK examples and helper scripts:
+  - `example_bakes/`
+  - `helper_scripts/`
 
-- Architecture and workflow are defined:
-  - trajectories -> observer lessons -> distilled rules -> teacher/student prompts -> stim/rollout -> bake -> ablation eval.
-- Runtime blockers were identified in execution:
-  - WebArena site stack must be live (shopping/admin + required domains).
-  - Agent model endpoint must be reachable and OpenAI-compatible.
-- Bread docs integration requirements are captured and validated at the workflow level, including stim/rollout ordering and target/bake semantics.
+## What this already accomplishes
 
-## What is still missing (the actual training)
+- Stable shopping-only split generation (80/20 by task id).
+- Windowed training loop structure (20-task batches).
+- Observer -> lesson store -> distill -> recipe generation.
+- Bread target/stim/rollout/bake orchestration with dry-run support.
+- Ablation runner for validation variants:
+  - baseline
+  - retrieval_only
+  - distilled_prompt
+  - baked
+  - baked_plus_retrieval
 
-The missing piece is full live training execution over real WebArena shopping runs:
+## What is still missing (actual training)
 
-- Start and verify all required WebArena services.
-- Run a real 20-task train window with successful trajectories (not infra failures).
-- Launch live Bread bake jobs (non-dry-run) from distilled rules.
-- Run full held-out validation ablations and iterate on rule quality.
+Only live execution remains:
 
-In short: the pipeline design is in place, but production-quality training data generation and live bake/eval cycles still need to run to completion.
+- Bring up full WebArena site stack (shopping/admin + required domains).
+- Ensure model endpoints are reachable (policy + optional observer endpoint).
+- Run non-dry Bread bakes (`dry_run_bake=false` or `--live-bake`).
+- Iterate on real trajectories and run full held-out ablations.
 
-## Setup
+In short: **code scaffold is in place; infrastructure-backed training/evaluation runs are the remaining step.**
+
+## Quick start
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Set your Bread key:
+```bash
+python scripts/build_shopping_split.py --config-dir /path/to/webarena/config_files
+```
 
 ```bash
-export BREAD_API_KEY="your_key"
+python scripts/train_loop.py --webarena-config-dir /path/to/webarena/config_files
+```
+
+```bash
+python scripts/run_ablation.py --webarena-config-dir /path/to/webarena/config_files --baked-model-name your/repo/bake/checkpoint
 ```
 
 ## References
 
+- [WebArena](https://github.com/web-arena-x/webarena)
 - [Bread docs](https://docs.bread.com.ai)
 - [Bread Stim API](https://docs.bread.com.ai/api-reference/targets-stim)
-- [WebArena](https://github.com/web-arena-x/webarena)
-
-## License
-
-See `LICENSE`.
