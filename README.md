@@ -45,7 +45,26 @@ This repo expects a sibling `webarena` checkout:
 - Default WebArena python is `../webarena/.conda-py310/bin/python`
 
 If your paths differ, update `configs/default.json`.
-In particular, set `webarena_python_executable` to a valid interpreter for your machine.
+
+## 1.1) Apply Required WebArena Patch (Important)
+
+This project depends on a small set of WebArena-side code updates (provider wiring, evaluator model config, auth/login robustness).
+
+Apply them once:
+
+```bash
+./scripts/apply_webarena_patch.sh
+```
+
+If your WebArena checkout is not at `../webarena`:
+
+```bash
+./scripts/apply_webarena_patch.sh /absolute/path/to/webarena
+```
+
+Patch source tracked in this repo:
+
+- `patches/webarena_required.patch`
 
 ## 2) Install Dependencies
 
@@ -98,14 +117,6 @@ That server always returns a canned `stop [N/A]` action and will cause near-all 
 
 ## 5) Build Task Splits
 
-First generate WebArena task configs (one-time, or whenever site URLs change):
-
-```bash
-cd ../webarena
-python3 scripts/generate_test_data.py
-cd -
-```
-
 Generate shopping train/val split from WebArena configs:
 
 ```bash
@@ -131,11 +142,6 @@ Optional infra scripts:
 - `python3 scripts/bringup_infra.py`
 - `python3 scripts/bootstrap_auth.py --webarena-config-dir "../webarena/config_files"`
 - `python3 scripts/smoke_gates.py --webarena-config-dir "../webarena/config_files"`
-
-Important notes:
-
-- `bringup_infra.py` only starts containers named `shopping`, `shopping_admin`, `forum`, and `gitlab` if they already exist on your machine.
-- If those containers do not exist yet, follow WebArena's `environment_docker/README.md` to create them, or use reachable hosted site URLs.
 
 ## 7) Configure Training
 
