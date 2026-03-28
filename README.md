@@ -40,6 +40,26 @@ This repo expects a sibling `webarena` checkout:
 
 If your paths differ, update `configs/default.json`.
 
+## 1.1) Apply Required WebArena Patch (Important)
+
+This project depends on a small set of WebArena-side code updates (provider wiring, evaluator model config, auth/login robustness).
+
+Apply them once:
+
+```bash
+./scripts/apply_webarena_patch.sh
+```
+
+If your WebArena checkout is not at `../webarena`:
+
+```bash
+./scripts/apply_webarena_patch.sh /absolute/path/to/webarena
+```
+
+Patch source tracked in this repo:
+
+- `patches/webarena_required.patch`
+
 ## 2) Install Dependencies
 
 From `webarena-bake`:
