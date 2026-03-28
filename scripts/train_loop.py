@@ -17,6 +17,7 @@ def main() -> None:
     parser.add_argument("--provider", default=None, help="Model provider name for WebArena run.py")
     parser.add_argument("--live-bake", action="store_true", help="Enable live bake calls (instead of dry-run prep).")
     parser.add_argument("--skip-preflight", action="store_true", help="Skip startup preflight checks.")
+    parser.add_argument("--no-resume-from-state", action="store_true", help="Disable automatic resume from existing lineage.json state.")
     parser.add_argument("--bake-backend", default=None, choices=["bread_sdk", "tinker"], help="Bake backend implementation.")
     args = parser.parse_args()
 
@@ -62,6 +63,7 @@ def main() -> None:
         wandb_single_run=bool(cfg.get("wandb_single_run", True)),
         wandb_run_name=cfg.get("wandb_run_name"),
         wandb_enable_child_runs=bool(cfg.get("wandb_enable_child_runs", False)),
+        resume_from_state=not args.no_resume_from_state,
     )
     result = run_train_loop(workspace_dir, loop_cfg)
     print(json.dumps(result, indent=2))

@@ -22,12 +22,18 @@ That script:
 
 1. runs preflight (`doctor.py`)
 2. prints planned number of bake windows
-3. starts the full train loop with Tinker live bakes
+3. starts a resilient train loop (auto-restarts on crash) with Tinker live bakes
 
 Dry-run mode:
 
 ```bash
 ./scripts/run_full_training.sh --dry-run
+```
+
+Disable the resilient auto-restart wrapper:
+
+```bash
+./scripts/run_full_training.sh --no-resilient
 ```
 
 ## 1) Repository Assumptions
@@ -40,51 +46,6 @@ This repo expects a sibling `webarena` checkout:
 
 If your paths differ, update `configs/default.json`.
 In particular, set `webarena_python_executable` to a valid interpreter for your machine.
-
-## 1.1) Apply Required WebArena Patch (Important)
-
-This project depends on a small set of WebArena-side code updates (provider wiring, evaluator model config, auth/login robustness).
-
-Apply them once:
-
-```bash
-./scripts/apply_webarena_patch.sh
-```
-
-If your WebArena checkout is not at `../webarena`:
-
-```bash
-./scripts/apply_webarena_patch.sh /absolute/path/to/webarena
-```
-
-Patch source tracked in this repo:
-
-- `patches/webarena_required.patch`
-
-## 1.2) Prepare WebArena Runtime (Required)
-
-Before building splits or running preflight, make sure your sibling `webarena` checkout is runnable.
-
-From `../webarena`:
-
-```bash
-pip install -e .
-```
-
-If you run into missing-module errors in `webarena` scripts, install WebArena runtime deps:
-
-```bash
-pip install -r requirements.txt
-```
-
-Then install Playwright browser binaries (required for `run.py`/smoke gates):
-
-```bash
-python3 -m playwright install chromium
-```
-
-> Note: WebArena dependency resolution can be Python-version sensitive on some systems.
-> If `pip install -r requirements.txt` fails in your default interpreter, use a Python version/environment supported by your WebArena checkout.
 
 ## 2) Install Dependencies
 
@@ -222,6 +183,15 @@ python3 scripts/train_loop.py \
 ./scripts/run_full_training.sh
 ```
 
+### Crash-resilient mode explicitly
+
+```bash
+python3 scripts/train_loop_resilient.py \
+  --webarena-config-dir "../webarena/config_files" \
+  --bake-backend tinker \
+  --live-bake
+```
+
 ### How many bakes will run?
 
 Number of bakes = `ceil(train_count / batch_size)`.
@@ -325,10 +295,24 @@ python3 scripts/run_ablation.py \
     "../webarena/.conda-py310/bin/python" -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"
     ```
 
+- **Run crashed/stopped mid-training**
+  - Use resilient launcher:
+    ```bash
+    python3 scripts/train_loop_resilient.py \
+      --webarena-config-dir "../webarena/config_files" \
+      --bake-backend tinker \
+      --live-bake
+    ```
+  - The loop now writes:
+    - `results/state/run_heartbeat.json` (live stage + progress)
+    - `results/state/last_error.json` (stack trace on failure)
+  - Restarting `scripts/train_loop.py` now resumes automatically from `results/state/lineage.json` unless you pass `--no-resume-from-state`.
+
 ## 14) Key Scripts
 
 - `scripts/build_shopping_split.py`
 - `scripts/train_loop.py`
+- `scripts/train_loop_resilient.py`
 - `scripts/run_full_training.sh`
 - `scripts/run_ablation.py`
 - `scripts/doctor.py`

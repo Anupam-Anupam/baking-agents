@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import os
 from pathlib import Path
+import shutil
+import traceback
 
 from webarena_bake.baking.bake_runner import BakeConfig, run_window_bake
 from webarena_bake.baking.target_builder import TargetSpec
@@ -43,9 +45,16 @@ class LoopConfig:
     wandb_single_run: bool = True
     wandb_run_name: str | None = None
     wandb_enable_child_runs: bool = False
+    resume_from_state: bool = True
 
 
-def _runtime_metadata(config: LoopConfig, split: dict, current_model: str) -> dict:
+def _runtime_metadata(
+    config: LoopConfig,
+    split: dict,
+    current_model: str,
+    completed_windows: int,
+    remaining_train_count: int,
+) -> dict:
     return {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "provider": config.provider,
@@ -61,11 +70,14 @@ def _runtime_metadata(config: LoopConfig, split: dict, current_model: str) -> di
         "wandb_single_run": config.wandb_single_run,
         "wandb_run_name": config.wandb_run_name or "",
         "wandb_enable_child_runs": config.wandb_enable_child_runs,
+        "resume_from_state": config.resume_from_state,
         "batch_size": config.batch_size,
         "split_seed": split.get("seed"),
         "train_ratio": split.get("train_ratio"),
         "train_count": len(split.get("train_ids", [])),
         "val_count": len(split.get("val_ids", [])),
+        "completed_windows": completed_windows,
+        "remaining_train_count": remaining_train_count,
         "webarena_root": str(config.webarena_root),
         "webarena_config_dir": str(config.webarena_config_dir),
         "webarena_python_executable": config.webarena_python_executable,
@@ -77,19 +89,90 @@ def _chunked(items: list[str], size: int) -> list[list[str]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
+def _state_path(state_dir: Path, name: str) -> Path:
+    return state_dir / name
+
+
+def _write_heartbeat(state_dir: Path, **payload: object) -> None:
+    data = {"timestamp_utc": datetime.now(timezone.utc).isoformat(), **payload}
+    write_json(_state_path(state_dir, "run_heartbeat.json"), data)
+
+
+def _write_last_error(state_dir: Path, exc: BaseException, stage: str, run_id: str = "") -> None:
+    write_json(
+        _state_path(state_dir, "last_error.json"),
+        {
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "stage": stage,
+            "run_id": run_id,
+            "error_type": type(exc).__name__,
+            "error_message": str(exc),
+            "traceback": traceback.format_exc(),
+        },
+    )
+
+
+def _load_existing_lineage(state_dir: Path) -> tuple[list[dict], str]:
+    lineage_path = _state_path(state_dir, "lineage.json")
+    if not lineage_path.exists():
+        return [], ""
+    try:
+        payload = read_json(lineage_path)
+    except Exception:
+        return [], ""
+    lineage = list(payload.get("lineage", []))
+    current_model = str(payload.get("current_model", "")).strip()
+    return lineage, current_model
+
+
 def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
     split = read_json(config.split_manifest_path)
-    train_ids = list(split.get("train_ids", []))
-    windows = _chunked(train_ids, config.batch_size)
+    train_ids_all = list(split.get("train_ids", []))
 
     state_dir = workspace_dir / "results" / "state"
     state_dir.mkdir(parents=True, exist_ok=True)
 
+    lineage: list[dict] = []
     current_model = config.initial_model_name
     current_bake_base_model = (
-        (config.bread_base_model or config.initial_model_name) if config.bake_backend == "tinker" else config.bread_base_model
+        (config.bread_base_model or config.initial_model_name)
+        if config.bake_backend == "tinker"
+        else config.bread_base_model
     )
-    lineage: list[dict] = []
+
+    if config.resume_from_state:
+        existing_lineage, existing_current_model = _load_existing_lineage(state_dir)
+        if existing_lineage:
+            lineage = existing_lineage
+            last = existing_lineage[-1]
+            current_model = str(last.get("output_model", "") or existing_current_model or current_model)
+            if config.bake_backend == "tinker":
+                resumed_base = str(last.get("tinker_state_path", "")).strip() or str(last.get("bake_base_model", "")).strip()
+                if resumed_base:
+                    current_bake_base_model = resumed_base
+
+    completed_task_ids = {
+        str(task_id)
+        for item in lineage
+        for task_id in item.get("task_ids", [])
+    }
+    remaining_train_ids = [task_id for task_id in train_ids_all if task_id not in completed_task_ids]
+    windows = _chunked(remaining_train_ids, config.batch_size)
+    window_start_index = len(lineage) + 1
+
+    _write_heartbeat(
+        state_dir,
+        stage="initialized",
+        completed_windows=len(lineage),
+        remaining_tasks=len(remaining_train_ids),
+        current_model=current_model,
+    )
+
+    if not remaining_train_ids:
+        write_json(state_dir / "run_metadata.json", _runtime_metadata(config, split, current_model, len(lineage), 0))
+        _write_heartbeat(state_dir, stage="complete_no_remaining", completed_windows=len(lineage), remaining_tasks=0)
+        return {"windows": len(lineage), "final_model": current_model, "lineage": lineage}
+
     orchestrator_wandb = None
     wandb_group = ""
     orchestrator_run_id = ""
@@ -110,6 +193,8 @@ def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
                     "batch_size": config.batch_size,
                     "bake_backend": config.bake_backend,
                     "train_windows": len(windows),
+                    "resume_from_state": config.resume_from_state,
+                    "already_completed_windows": len(lineage),
                 },
             )
             if orchestrator_wandb is not None:
@@ -119,11 +204,12 @@ def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
             orchestrator_wandb = None
 
     try:
+        _write_heartbeat(state_dir, stage="preflight_start", remaining_tasks=len(remaining_train_ids))
         if config.run_preflight_checks:
             preflight = run_preflight(
                 webarena_root=config.webarena_root,
                 webarena_config_dir=config.webarena_config_dir,
-                task_ids=train_ids[: min(len(train_ids), config.batch_size)],
+                task_ids=remaining_train_ids[: min(len(remaining_train_ids), config.batch_size)],
                 policy_model_endpoint=config.model_endpoint,
                 observer_model_endpoint=config.observer_endpoint,
                 provider=config.provider,
@@ -133,11 +219,28 @@ def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
                 raise RuntimeError(
                     "Preflight checks failed. See results/state/preflight.json for details and remediation hints."
                 )
+        _write_heartbeat(state_dir, stage="preflight_ok", remaining_tasks=len(remaining_train_ids))
 
-        write_json(state_dir / "run_metadata.json", _runtime_metadata(config, split, current_model))
+        write_json(
+            state_dir / "run_metadata.json",
+            _runtime_metadata(config, split, current_model, len(lineage), len(remaining_train_ids)),
+        )
 
-        for window_index, task_ids in enumerate(windows, start=1):
+        for offset, task_ids in enumerate(windows):
+            window_index = window_start_index + offset
             run_id = f"window_{window_index:03d}"
+            _write_heartbeat(
+                state_dir,
+                stage="window_start",
+                run_id=run_id,
+                window_index=window_index,
+                tasks_in_window=len(task_ids),
+                remaining_windows=len(windows) - offset,
+            )
+            run_dir = workspace_dir / "results" / "runs" / run_id
+            if run_dir.exists():
+                # If previous attempt died mid-window, start this window cleanly.
+                shutil.rmtree(run_dir)
             run_records = run_batch(
                 webarena_root=config.webarena_root,
                 config_dir=config.webarena_config_dir,
@@ -150,6 +253,7 @@ def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
                 result_dir=workspace_dir / "results" / "runs",
                 python_executable=config.webarena_python_executable,
             )
+            _write_heartbeat(state_dir, stage="window_batch_complete", run_id=run_id, window_index=window_index)
 
             lessons = extract_lessons(
                 run_records,
@@ -161,6 +265,7 @@ def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
             window_observer_dir = workspace_dir / "results" / "observer" / run_id
             window_observer_dir.mkdir(parents=True, exist_ok=True)
             write_jsonl(window_observer_dir / "lessons.jsonl", (item.to_dict() for item in lessons))
+            _write_heartbeat(state_dir, stage="window_observer_complete", run_id=run_id, window_index=window_index)
 
             note_store = LessonStore(workspace_dir / "results" / "observer" / "window_notes.jsonl")
             note_store.clear()
@@ -174,6 +279,7 @@ def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
                 min_confidence=0.65,
                 max_contradictions=0,
             )
+            _write_heartbeat(state_dir, stage="window_distill_complete", run_id=run_id, window_index=window_index)
 
             bake_summary = run_window_bake(
                 workspace_dir=workspace_dir,
@@ -206,6 +312,7 @@ def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
                 ),
                 run_records=run_records,
             )
+            _write_heartbeat(state_dir, stage="window_bake_complete", run_id=run_id, window_index=window_index)
             bake_status = str(bake_summary.get("status", "")).strip().lower()
             if bake_status and bake_status not in {"completed", "dry_run_prepared"}:
                 failure_reason = str(bake_summary.get("failure_reason", "")).strip()
@@ -240,6 +347,14 @@ def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
             }
             lineage.append(lineage_item)
             write_json(state_dir / "lineage.json", {"lineage": lineage, "current_model": current_model})
+            _write_heartbeat(
+                state_dir,
+                stage="window_commit_complete",
+                run_id=run_id,
+                window_index=window_index,
+                completed_windows=len(lineage),
+                remaining_tasks=max(len(remaining_train_ids) - ((offset + 1) * config.batch_size), 0),
+            )
 
             if orchestrator_wandb is not None:
                 pass_count = sum(1 for item in run_records if item.success)
@@ -261,6 +376,11 @@ def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
                     },
                     step=window_index,
                 )
+        _write_heartbeat(state_dir, stage="complete", completed_windows=len(lineage), remaining_tasks=0)
+    except Exception as exc:
+        _write_last_error(state_dir, exc=exc, stage="run_train_loop")
+        _write_heartbeat(state_dir, stage="failed", completed_windows=len(lineage))
+        raise
     finally:
         if orchestrator_wandb is not None:
             try:

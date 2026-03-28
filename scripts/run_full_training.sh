@@ -14,6 +14,7 @@ CONFIG_PATH="./configs/default.json"
 SPLIT_PATH="./data/splits/shopping_split_manifest.json"
 WEBARENA_CONFIG_DIR="../webarena/config_files"
 DRY_RUN=0
+RESILIENT=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -31,6 +32,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --dry-run)
       DRY_RUN=1
+      shift
+      ;;
+    --no-resilient)
+      RESILIENT=0
       shift
       ;;
     *)
@@ -61,14 +66,22 @@ PY
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "Starting DRY-RUN training loop..."
-  python3 "./scripts/train_loop.py" \
+  TRAIN_CMD=(python3 "./scripts/train_loop.py")
+  if [[ "$RESILIENT" -eq 1 ]]; then
+    TRAIN_CMD=(python3 "./scripts/train_loop_resilient.py")
+  fi
+  "${TRAIN_CMD[@]}" \
     --config "$CONFIG_PATH" \
     --split-manifest "$SPLIT_PATH" \
     --webarena-config-dir "$WEBARENA_CONFIG_DIR" \
     --bake-backend tinker
 else
   echo "Starting LIVE training loop..."
-  python3 "./scripts/train_loop.py" \
+  TRAIN_CMD=(python3 "./scripts/train_loop.py")
+  if [[ "$RESILIENT" -eq 1 ]]; then
+    TRAIN_CMD=(python3 "./scripts/train_loop_resilient.py")
+  fi
+  "${TRAIN_CMD[@]}" \
     --config "$CONFIG_PATH" \
     --split-manifest "$SPLIT_PATH" \
     --webarena-config-dir "$WEBARENA_CONFIG_DIR" \

@@ -1,7 +1,7 @@
 """Auto-generated WebArena Tinker config."""
 
 MODEL_NAME = "Qwen/Qwen3-8B"
-BASE_MODEL_PATH = "tinker://e5371597-bad8-5887-b163-dd58358f43d1:train:0/weights/final"
+BASE_MODEL_PATH = "tinker://bd693bed-309b-5135-9fe3-c284b6eca6b0:train:0/weights/final"
 OPENROUTER_MODEL = "qwen/qwen3-8b"
 RENDERER_NAME = "qwen3_disable_thinking"
 
@@ -30,6 +30,6 @@ MAX_TOKENS_VERIFY = 256
 
 PROMPT_FILE = "prompt.md"
 DATA_FILE = "baking_data.jsonl"
-LOG_DIR = "/Users/anupamchettimada/bread project/webarena-bake/results/bake_eval/window_003/tinker_logs"
+LOG_DIR = "/Users/anupamchettimada/bread project/webarena-bake/results/bake_eval/window_001/tinker_logs"
 
 WANDB_PROJECT = "webarena-bake"
