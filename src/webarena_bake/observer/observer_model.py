@@ -30,6 +30,13 @@ def heuristic_observe(record: WebArenaRunRecord) -> ObserverDecision:
             rule_text="Handle page or tool errors by re-synchronizing state before retrying the next minimal action.",
             confidence=0.7,
         )
+    if record.steps > 20:
+        return ObserverDecision(
+            score=0.35,
+            failure_type="long_horizon_drift",
+            rule_text="If many actions fail to improve progress, restate intent and navigate back to the most relevant page.",
+            confidence=0.75,
+        )
     return ObserverDecision(
         score=0.45,
         failure_type="action_mismatch",
@@ -39,6 +46,10 @@ def heuristic_observe(record: WebArenaRunRecord) -> ObserverDecision:
 
 
 def call_observer_endpoint(record: WebArenaRunRecord, endpoint: str, model: str, api_key: str | None = None) -> ObserverDecision:
+    """
+    Optional OpenAI-compatible observer call.
+    Falls back to heuristic output on request failures.
+    """
     prompt = (
         "You are evaluating a web agent trajectory.\n"
         f"Intent: {record.task_intent}\n"

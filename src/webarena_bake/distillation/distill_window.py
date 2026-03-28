@@ -8,10 +8,27 @@ from webarena_bake.schemas.types import Lesson, PromptRecipe
 from webarena_bake.utils.io import write_json, write_jsonl
 
 
-def distill_window(lessons: list[Lesson], output_dir: Path, recipe_version: str) -> PromptRecipe:
-    rules = synthesize_rules(lessons=lessons, min_support=2, min_confidence=0.65, max_contradictions=0)
+def distill_window(
+    lessons: list[Lesson],
+    output_dir: Path,
+    recipe_version: str,
+    min_support: int = 2,
+    min_confidence: float = 0.65,
+    max_contradictions: int = 0,
+) -> PromptRecipe:
+    rules = synthesize_rules(
+        lessons=lessons,
+        min_support=min_support,
+        min_confidence=min_confidence,
+        max_contradictions=max_contradictions,
+    )
     if not rules and lessons:
-        rules = synthesize_rules(lessons=lessons, min_support=1, min_confidence=0.5, max_contradictions=0)
+        rules = synthesize_rules(
+            lessons=lessons,
+            min_support=1,
+            min_confidence=0.5,
+            max_contradictions=max_contradictions,
+        )
 
     recipe = build_prompt_recipe(
         recipe_version=recipe_version,

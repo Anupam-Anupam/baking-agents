@@ -125,6 +125,7 @@ def run_task(
         },
         raw={"returncode": proc.returncode, "error_code": error_code},
     )
+
     (task_out_dir / "stdout.log").write_text(proc.stdout, encoding="utf-8")
     (task_out_dir / "stderr.log").write_text(proc.stderr, encoding="utf-8")
     write_json(task_out_dir / "run_record.json", record.to_dict())

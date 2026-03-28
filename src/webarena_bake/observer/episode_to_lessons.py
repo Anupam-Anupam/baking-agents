@@ -19,9 +19,11 @@ def extract_lessons(
             else heuristic_observe(record)
         )
         status = "success" if record.success else "fail"
+
+        lesson_id = f"lesson_{record.run_id}_{record.task_id}"
         lessons.append(
             Lesson(
-                lesson_id=f"lesson_{record.run_id}_{record.task_id}",
+                lesson_id=lesson_id,
                 run_id=record.run_id,
                 task_id=record.task_id,
                 task_family=task_family,

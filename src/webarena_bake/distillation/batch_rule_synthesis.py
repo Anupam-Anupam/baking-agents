@@ -20,15 +20,19 @@ def synthesize_rules(
 ) -> list[DistilledRule]:
     clusters = cluster_lessons(lessons)
     rules: list[DistilledRule] = []
-    for _, group in clusters.items():
+
+    for rule_text, group in clusters.items():
         if len(group) < min_support:
             continue
+
         avg_conf = sum(item.confidence for item in group) / len(group)
         if avg_conf < min_confidence:
             continue
+
         contradictions = contradiction_score(group)
         if contradictions > max_contradictions:
             continue
+
         rules.append(
             DistilledRule(
                 rule_id=f"rule_{len(rules)+1:04d}",
@@ -40,6 +44,7 @@ def synthesize_rules(
                 source_lesson_ids=[item.lesson_id for item in group],
             )
         )
+
     rules.sort(key=lambda item: (item.support_count, item.avg_confidence), reverse=True)
     return rules
 

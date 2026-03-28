@@ -51,14 +51,14 @@ class BreadClient:
     def run_stim(self, repo_name: str, target_name: str) -> dict[str, Any]:
         if self.dry_run:
             return {"status": "complete", "dry_run": True, "lines": 0}
-        status = self._client.targets.stim.run(repo_name=repo_name, target_name=target_name, poll=True)
-        return {"status": status.status, "lines": getattr(status, "lines", 0)}
+        self._client.targets.stim.run(repo_name=repo_name, target_name=target_name)
+        return {"status": "started"}
 
     def run_rollout(self, repo_name: str, target_name: str) -> dict[str, Any]:
         if self.dry_run:
             return {"status": "complete", "dry_run": True, "lines": 0}
-        status = self._client.targets.rollout.run(repo_name=repo_name, target_name=target_name, poll=True)
-        return {"status": status.status, "lines": getattr(status, "lines", 0)}
+        self._client.targets.rollout.run(repo_name=repo_name, target_name=target_name)
+        return {"status": "started"}
 
     def bake_set(self, repo_name: str, bake_name: str, target_name: str, weight: float = 1.0) -> dict[str, Any]:
         if self.dry_run:

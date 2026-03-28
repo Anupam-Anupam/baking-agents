@@ -10,6 +10,7 @@ def build_teacher_prompt(rules: list[DistilledRule], domain_name: str = "shoppin
     ]
     for idx, rule in enumerate(rules, start=1):
         lines.append(f"{idx}. {rule.rule_text}")
+
     lines.extend(
         [
             "",

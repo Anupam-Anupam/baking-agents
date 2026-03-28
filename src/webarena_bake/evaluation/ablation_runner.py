@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from webarena_bake.evaluation.ablation_matrix import ABLATION_VARIANTS
+from webarena_bake.runners.preflight import run_preflight
 from webarena_bake.runners.webarena_batch_runner import run_batch
 from webarena_bake.utils.io import read_json, write_json
 
@@ -20,6 +21,8 @@ class AblationConfig:
     model_endpoint: str
     max_tasks: int | None = None
     webarena_python_executable: str = "python"
+    observer_endpoint: str | None = None
+    run_preflight_checks: bool = True
 
 
 def _variant_model_name(variant_name: str, base_model_name: str, baked_model_name: str) -> str:
@@ -33,6 +36,21 @@ def run_ablation(workspace_dir: Path, config: AblationConfig) -> dict:
     val_ids = list(split.get("val_ids", []))
     if config.max_tasks is not None:
         val_ids = val_ids[: config.max_tasks]
+
+    if config.run_preflight_checks:
+        preflight = run_preflight(
+            webarena_root=config.webarena_root,
+            webarena_config_dir=config.webarena_config_dir,
+            task_ids=val_ids[: min(len(val_ids), 5)],
+            policy_model_endpoint=config.model_endpoint,
+            observer_model_endpoint=config.observer_endpoint,
+            provider=config.provider,
+        )
+        write_json(workspace_dir / "results" / "eval" / "preflight.json", preflight)
+        if not preflight.get("ok", False):
+            raise RuntimeError(
+                "Ablation preflight failed. See results/eval/preflight.json for details and remediation hints."
+            )
 
     summary: dict[str, dict] = {}
     for variant in ABLATION_VARIANTS:

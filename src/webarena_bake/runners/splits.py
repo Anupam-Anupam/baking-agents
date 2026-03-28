@@ -18,15 +18,22 @@ def is_shopping_task(config_payload: dict) -> bool:
     return "shopping" in site
 
 
-def build_shopping_split(config_dir: Path, output_dir: Path, train_ratio: float = 0.8, seed: int = 42) -> dict:
+def build_shopping_split(
+    config_dir: Path,
+    output_dir: Path,
+    train_ratio: float = 0.8,
+    seed: int = 42,
+) -> dict:
     configs = sorted(config_dir.glob("*.json"))
     task_ids: list[str] = []
     for cfg in configs:
         payload = read_json(cfg)
         if not isinstance(payload, dict):
+            # Skip aggregate files like test.json that contain a list.
             continue
         if is_shopping_task(payload):
-            task_ids.append(str(payload.get("task_id", cfg.stem)))
+            task_id = str(payload.get("task_id", cfg.stem))
+            task_ids.append(task_id)
 
     task_ids = sorted(set(task_ids))
     rng = random.Random(seed)

@@ -10,12 +10,13 @@ def build_prompt_recipe(
     distilled_rules: list[DistilledRule],
     teacher_prompt_name: str,
     student_prompt_name: str,
+    domain_name: str = "shopping web navigation",
 ) -> PromptRecipe:
     return PromptRecipe(
         recipe_version=recipe_version,
         teacher_prompt_name=teacher_prompt_name,
         student_prompt_name=student_prompt_name,
-        teacher_prompt_text=build_teacher_prompt(distilled_rules),
+        teacher_prompt_text=build_teacher_prompt(distilled_rules, domain_name=domain_name),
         student_prompt_text=build_student_prompt(always_on=True),
         rule_ids=[rule.rule_id for rule in distilled_rules],
         task_families=sorted({rule.task_family for rule in distilled_rules}) or ["shopping"],
