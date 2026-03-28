@@ -8,8 +8,9 @@ from webarena_bake.baking.baked_model_registry import BakedModelRegistry
 from webarena_bake.baking.bread_client import BreadClient
 from webarena_bake.baking.rollout_prep import build_generators
 from webarena_bake.baking.stim_generation import generate_stim_jsonl
+from webarena_bake.baking.tinker_backend import run_tinker_window_bake
 from webarena_bake.baking.target_builder import TargetSpec
-from webarena_bake.schemas.types import BakeLineageRecord, PromptRecipe
+from webarena_bake.schemas.types import BakeLineageRecord, PromptRecipe, WebArenaRunRecord
 from webarena_bake.utils.hash import stable_hash
 from webarena_bake.utils.io import write_json
 
@@ -22,9 +23,48 @@ class BakeConfig:
     target_name: str
     dry_run: bool = True
     stim_count: int = 200
+    backend: str = "bread_sdk"
+    tinker_repo_path: str | None = None
+    tinker_python_executable: str = "python3"
+    tinker_num_epochs: int = 1
+    tinker_top_k: int = 20
+    wandb_project: str | None = None
+    wandb_entity: str | None = None
+    wandb_group: str | None = None
+    wandb_run_name: str | None = None
+    wandb_orchestrator_run_id: str | None = None
+    window_index: int | None = None
+    wandb_enable_child_run: bool = False
 
 
-def run_window_bake(workspace_dir: Path, recipe: PromptRecipe, target_spec: TargetSpec, config: BakeConfig) -> dict[str, Any]:
+def run_window_bake(
+    workspace_dir: Path,
+    recipe: PromptRecipe,
+    target_spec: TargetSpec,
+    config: BakeConfig,
+    run_records: list[WebArenaRunRecord] | None = None,
+) -> dict[str, Any]:
+    if config.backend == "tinker":
+        return run_tinker_window_bake(
+            workspace_dir=workspace_dir,
+            recipe=recipe,
+            run_records=run_records or [],
+            bake_name=config.bake_name,
+            base_model=config.base_model,
+            dry_run=config.dry_run,
+            tinker_repo_path=config.tinker_repo_path,
+            tinker_python_executable=config.tinker_python_executable,
+            tinker_num_epochs=config.tinker_num_epochs,
+            tinker_top_k=config.tinker_top_k,
+            wandb_project=config.wandb_project,
+            wandb_entity=config.wandb_entity,
+            wandb_group=config.wandb_group,
+            wandb_run_name=config.wandb_run_name,
+            wandb_orchestrator_run_id=config.wandb_orchestrator_run_id,
+            window_index=config.window_index,
+            wandb_enable_child_run=config.wandb_enable_child_run,
+        )
+
     client = BreadClient(dry_run=config.dry_run)
     out_dir = workspace_dir / "results" / "bake_eval" / recipe.recipe_version
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -49,7 +89,11 @@ def run_window_bake(workspace_dir: Path, recipe: PromptRecipe, target_spec: Targ
     client.bake_set(config.repo_name, config.bake_name, config.target_name)
     bake_result = client.bake_run(config.repo_name, config.bake_name)
 
+    recipe_hash = stable_hash(recipe.to_dict())
+    stim_hash = stable_hash(stim_rows)
+    rollout_hash = stable_hash(generators)
     bake_id = str(bake_result.get("bake_id", config.bake_name))
+
     registry = BakedModelRegistry(workspace_dir / "data" / "bread" / "baked_models" / "registry.json")
     registry.add_record(
         BakeLineageRecord(
@@ -59,9 +103,9 @@ def run_window_bake(workspace_dir: Path, recipe: PromptRecipe, target_spec: Targ
             teacher_prompt_version=recipe.recipe_version,
             stim_version=recipe.recipe_version,
             rollout_version=recipe.recipe_version,
-            recipe_hash=stable_hash(recipe.to_dict()),
-            stim_hash=stable_hash(stim_rows),
-            rollout_hash=stable_hash(generators),
+            recipe_hash=recipe_hash,
+            stim_hash=stim_hash,
+            rollout_hash=rollout_hash,
             notes="Window bake from observer distilled rules",
         )
     )
