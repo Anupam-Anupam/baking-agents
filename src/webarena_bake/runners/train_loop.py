@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import traceback
+from typing import Any
 
 from webarena_bake.baking.bake_runner import BakeConfig, run_window_bake
 from webarena_bake.baking.target_builder import TargetSpec
@@ -125,6 +126,87 @@ def _load_existing_lineage(state_dir: Path) -> tuple[list[dict], str]:
     return lineage, current_model
 
 
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _wandb_progress_path(state_dir: Path) -> Path:
+    return _state_path(state_dir, "wandb_progress.json")
+
+
+def _load_wandb_progress(state_dir: Path) -> dict[str, Any]:
+    path = _wandb_progress_path(state_dir)
+    if not path.exists():
+        return {"last_logged_window": 0}
+    try:
+        payload = read_json(path)
+    except Exception:
+        return {"last_logged_window": 0}
+    payload.setdefault("last_logged_window", 0)
+    return payload
+
+
+def _write_wandb_progress(state_dir: Path, **payload: Any) -> None:
+    existing = _load_wandb_progress(state_dir)
+    existing.update(payload)
+    existing["timestamp_utc"] = datetime.now(timezone.utc).isoformat()
+    write_json(_wandb_progress_path(state_dir), existing)
+
+
+def _window_metrics_payload(
+    run_records: list[Any],
+    bake_summary: dict[str, Any],
+    window_index: int,
+) -> dict[str, float]:
+    pass_count = sum(1 for item in run_records if bool(getattr(item, "success", False)))
+    score_sum = sum(_safe_float(getattr(item, "score", 0.0), 0.0) for item in run_records)
+    avg_score = score_sum / max(len(run_records), 1)
+    bake_status = str(bake_summary.get("status", "")).strip().lower()
+    train_metrics = dict(bake_summary.get("train_metrics", {}) or {})
+    train_logs: dict[str, float] = {}
+    for key in ("last_avg_kl_per_token", "last_kl_loss", "last_lr", "last_datums", "steps"):
+        if key in train_metrics:
+            train_logs[f"window/train_{key}"] = _safe_float(train_metrics[key], 0.0)
+    return {
+        "window_index": float(window_index),
+        "window/pass_count": float(pass_count),
+        "window/task_count": float(len(run_records)),
+        "window/pass_rate": float(pass_count / max(len(run_records), 1)),
+        "window/avg_score": float(avg_score),
+        "window/bake_status": 1.0 if bake_status == "completed" else 0.0,
+        **train_logs,
+    }
+
+
+def _load_run_records_for_window(workspace_dir: Path, run_id: str) -> list[Any]:
+    from webarena_bake.schemas.types import WebArenaRunRecord
+
+    run_dir = workspace_dir / "results" / "runs" / run_id
+    if not run_dir.exists():
+        return []
+    records: list[Any] = []
+    for record_path in sorted(run_dir.glob("*/run_record.json")):
+        try:
+            row = read_json(record_path)
+            records.append(WebArenaRunRecord(**row))
+        except Exception:
+            continue
+    return records
+
+
+def _load_bake_summary_for_window(workspace_dir: Path, run_id: str) -> dict[str, Any]:
+    bake_summary_path = workspace_dir / "results" / "bake_eval" / run_id / "bake_summary.json"
+    if not bake_summary_path.exists():
+        return {}
+    try:
+        return read_json(bake_summary_path)
+    except Exception:
+        return {}
+
+
 def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
     split = read_json(config.split_manifest_path)
     train_ids_all = list(split.get("train_ids", []))
@@ -200,10 +282,32 @@ def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
             if orchestrator_wandb is not None:
                 orchestrator_run_id = str(getattr(orchestrator_wandb, "id", "") or "")
                 wandb_group = orchestrator_run_id or run_name
+                orchestrator_wandb.log(
+                    {
+                        "progress/heartbeat_seen": 1.0,
+                        "progress/completed_windows": float(len(lineage)),
+                        "progress/remaining_windows": float(len(windows)),
+                    }
+                )
         except Exception:
             orchestrator_wandb = None
 
     try:
+        # Backfill window metrics for already-completed windows (important on resume/crash recovery).
+        if orchestrator_wandb is not None and lineage:
+            progress = _load_wandb_progress(state_dir)
+            last_logged_window = int(progress.get("last_logged_window", 0) or 0)
+            for item in lineage:
+                window_index = int(item.get("window", 0) or 0)
+                if window_index <= last_logged_window:
+                    continue
+                run_id = str(item.get("run_id", f"window_{window_index:03d}"))
+                historical_records = _load_run_records_for_window(workspace_dir, run_id)
+                historical_bake = _load_bake_summary_for_window(workspace_dir, run_id)
+                metrics_payload = _window_metrics_payload(historical_records, historical_bake, window_index)
+                orchestrator_wandb.log(metrics_payload, step=window_index)
+                _write_wandb_progress(state_dir, last_logged_window=window_index, backfill_run_id=run_id)
+
         _write_heartbeat(state_dir, stage="preflight_start", remaining_tasks=len(remaining_train_ids))
         if config.run_preflight_checks:
             preflight = run_preflight(
@@ -229,6 +333,14 @@ def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
         for offset, task_ids in enumerate(windows):
             window_index = window_start_index + offset
             run_id = f"window_{window_index:03d}"
+            if orchestrator_wandb is not None:
+                orchestrator_wandb.log(
+                    {
+                        "progress/heartbeat_seen": 1.0,
+                        "progress/current_window_index": float(window_index),
+                        "progress/remaining_windows": float(len(windows) - offset),
+                    }
+                )
             _write_heartbeat(
                 state_dir,
                 stage="window_start",
@@ -357,25 +469,8 @@ def run_train_loop(workspace_dir: Path, config: LoopConfig) -> dict:
             )
 
             if orchestrator_wandb is not None:
-                pass_count = sum(1 for item in run_records if item.success)
-                avg_score = sum(item.score for item in run_records) / max(len(run_records), 1)
-                train_metrics = dict(bake_summary.get("train_metrics", {}) or {})
-                train_logs = {}
-                for key in ("last_avg_kl_per_token", "last_kl_loss", "last_lr", "last_datums", "steps"):
-                    if key in train_metrics:
-                        train_logs[f"window/train_{key}"] = float(train_metrics[key])
-                orchestrator_wandb.log(
-                    {
-                        "window_index": window_index,
-                        "window/pass_count": pass_count,
-                        "window/task_count": len(run_records),
-                        "window/pass_rate": pass_count / max(len(run_records), 1),
-                        "window/avg_score": avg_score,
-                        "window/bake_status": 1.0 if bake_status == "completed" else 0.0,
-                        **train_logs,
-                    },
-                    step=window_index,
-                )
+                orchestrator_wandb.log(_window_metrics_payload(run_records, bake_summary, window_index), step=window_index)
+                _write_wandb_progress(state_dir, last_logged_window=window_index, latest_run_id=run_id)
         _write_heartbeat(state_dir, stage="complete", completed_windows=len(lineage), remaining_tasks=0)
     except Exception as exc:
         _write_last_error(state_dir, exc=exc, stage="run_train_loop")

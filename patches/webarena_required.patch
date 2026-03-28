@@ -217,10 +217,10 @@ index ea91a10..f450dcd 100644
          assert isinstance(prompt, str)
          response = generate_from_huggingface_completion(
 diff --git a/run.py b/run.py
-index cee3c98..1ef01da 100644
+index cee3c98..eb60f1f 100644
 --- a/run.py
 +++ b/run.py
-@@ -6,6 +6,7 @@ import logging
+@@ -6,9 +6,11 @@ import logging
  import os
  import random
  import subprocess
@@ -228,7 +228,34 @@ index cee3c98..1ef01da 100644
  import tempfile
  import time
  from pathlib import Path
-@@ -111,7 +112,7 @@ def config() -> argparse.Namespace:
++from typing import Any
+ 
+ import openai
+ 
+@@ -56,6 +58,22 @@ console_handler.setFormatter(formatter)
+ file_handler.setFormatter(formatter)
+ 
+ 
++def _json_safe(value: Any) -> Any:
++    if isinstance(value, (str, int, float, bool)) or value is None:
++        return value
++    if isinstance(value, dict):
++        return {str(k): _json_safe(v) for k, v in value.items()}
++    if isinstance(value, (list, tuple)):
++        return [_json_safe(v) for v in value]
++    return str(value)
++
++
++def _append_agent_step(result_dir: str, payload: dict[str, Any]) -> None:
++    steps_path = Path(result_dir) / "agent_steps.jsonl"
++    with open(steps_path, "a", encoding="utf-8") as f:
++        f.write(json.dumps(_json_safe(payload), ensure_ascii=True) + "\n")
++
++
+ def config() -> argparse.Namespace:
+     parser = argparse.ArgumentParser(
+         description="Run end-to-end evaluation on the benchmark"
+@@ -111,7 +129,7 @@ def config() -> argparse.Namespace:
      )
  
      # lm config
@@ -237,7 +264,7 @@ index cee3c98..1ef01da 100644
      parser.add_argument("--model", type=str, default="gpt-3.5-turbo-0613")
      parser.add_argument("--mode", type=str, default="chat")
      parser.add_argument("--temperature", type=float, default=1.0)
-@@ -220,6 +221,7 @@ def test(
+@@ -220,6 +238,7 @@ def test(
      config_file_list: list[str],
  ) -> None:
      scores = []
@@ -245,7 +272,7 @@ index cee3c98..1ef01da 100644
      max_steps = args.max_steps
  
      early_stop_thresholds = {
-@@ -241,6 +243,7 @@ def test(
+@@ -241,6 +260,7 @@ def test(
      )
  
      for config_file in config_file_list:
@@ -253,7 +280,7 @@ index cee3c98..1ef01da 100644
          try:
              render_helper = RenderHelper(
                  config_file, args.result_dir, args.action_set_tag
-@@ -251,24 +254,40 @@ def test(
+@@ -251,24 +271,40 @@ def test(
                  _c = json.load(f)
                  intent = _c["intent"]
                  task_id = _c["task_id"]
@@ -298,7 +325,36 @@ index cee3c98..1ef01da 100644
                      # update the config file
                      config_file = f"{temp_dir}/{os.path.basename(config_file)}"
                      with open(config_file, "w") as f:
-@@ -349,8 +368,10 @@ def test(
+@@ -284,6 +320,7 @@ def test(
+             trajectory.append(state_info)
+ 
+             meta_data = {"action_history": ["None"]}
++            step_index = 0
+             while True:
+                 early_stop_flag, stop_info = early_stop(
+                     trajectory, max_steps, early_stop_thresholds
+@@ -314,6 +351,20 @@ def test(
+                     action, state_info, meta_data, args.render_screenshot
+                 )
+                 meta_data["action_history"].append(action_str)
++                _append_agent_step(
++                    args.result_dir,
++                    {
++                        "task_id": task_id,
++                        "step_index": step_index,
++                        "early_stop": early_stop_flag,
++                        "early_stop_reason": stop_info if early_stop_flag else "",
++                        "action_type": str(action.get("action_type", "")),
++                        "parsed_action": action_str,
++                        "raw_prediction": str(action.get("raw_prediction", "")),
++                        "meta_action_history_len": len(meta_data.get("action_history", [])),
++                    },
++                )
++                step_index += 1
+ 
+                 if action["action_type"] == ActionTypes.STOP:
+                     break
+@@ -349,8 +400,10 @@ def test(
  
          except openai.error.OpenAIError as e:
              logger.info(f"[OpenAI Error] {repr(e)}")
@@ -309,7 +365,7 @@ index cee3c98..1ef01da 100644
              import traceback
  
              # write to error file
-@@ -359,10 +380,16 @@ def test(
+@@ -359,10 +412,16 @@ def test(
                  f.write(f"[Unhandled Error] {repr(e)}\n")
                  f.write(traceback.format_exc())  # write stack trace to file
  

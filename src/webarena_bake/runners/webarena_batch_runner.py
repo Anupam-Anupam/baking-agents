@@ -56,6 +56,16 @@ def _load_task_metadata(config_file: Path) -> dict[str, Any]:
     return {"task_id": task_id, "intent": intent, "start_url": start_url}
 
 
+def _count_jsonl_rows(path: Path) -> int:
+    if not path.exists():
+        return 0
+    count = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            count += 1
+    return count
+
+
 def run_task(
     webarena_root: Path,
     result_dir: Path,
@@ -106,6 +116,8 @@ def run_task(
     proc = subprocess.run(command, cwd=webarena_root, capture_output=True, text=True, env=env)
     error_code = _classify_error(proc.stdout, proc.stderr, proc.returncode)
     success = _derive_success(proc.stdout, proc.stderr, proc.returncode)
+    agent_steps_file = task_out_dir / "agent_steps.jsonl"
+    step_count = _count_jsonl_rows(agent_steps_file)
     record = WebArenaRunRecord(
         run_id=run_id,
         task_id=meta["task_id"],
@@ -115,13 +127,14 @@ def run_task(
         model_name=model_name,
         success=success,
         score=_extract_score(proc.stdout, success),
-        steps=0,
+        steps=step_count,
         terminated=True,
         error="" if success else (proc.stderr[-3000:] or proc.stdout[-3000:]),
         artifacts={
             "result_dir": str(task_out_dir),
             "stdout_file": str(task_out_dir / "stdout.log"),
             "stderr_file": str(task_out_dir / "stderr.log"),
+            "agent_steps_file": str(agent_steps_file),
         },
         raw={"returncode": proc.returncode, "error_code": error_code},
     )
